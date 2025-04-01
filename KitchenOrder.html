@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kitchen Order Display</title>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f1f1f1;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    header {
+      background-color: #e74c3c;
+      color: white;
+      padding: 15px 0;
+      text-align: center;
+      margin-bottom: 20px;
+      border-radius: 5px;
+    }
+
+    .orders-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      gap: 20px;
+    }
+
+    .order-card {
+      background-color: white;
+      border-radius: 5px;
+      padding: 15px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+
+    .order-card h3 {
+      margin-top: 0;
+      color: #2c3e50;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 10px;
+    }
+
+    .order-time {
+      color: #7f8c8d;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+
+    .order-status {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 3px;
+      font-size: 12px;
+      margin-left: 10px;
+      text-transform: uppercase;
+    }
+
+    .status-new {
+      background-color: #3498db;
+      color: white;
+    }
+
+    .status-preparing {
+      background-color: #f39c12;
+      color: white;
+    }
+
+    .status-ready {
+      background-color: #27ae60;
+      color: white;
+    }
+
+    .order-items {
+      margin: 15px 0;
+    }
+
+    .order-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 5px 0;
+      font-size: 14px;
+    }
+
+    .order-total {
+      font-weight: bold;
+      text-align: right;
+      border-top: 1px solid #eee;
+      padding-top: 10px;
+      margin-top: 10px;
+    }
+
+    .order-actions {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 15px;
+    }
+
+    .action-btn {
+      padding: 8px 15px;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .preparing-btn {
+      background-color: #f39c12;
+      color: white;
+    }
+
+    .ready-btn {
+      background-color: #27ae60;
+      color: white;
+    }
+
+    .refresh-btn {
+      background-color: #3498db;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 3px;
+      margin-bottom: 20px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    .no-orders {
+      text-align: center;
+      padding: 40px;
+      background-color: white;
+      border-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+
+    @media (max-width: 600px) {
+      .orders-container {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <header>
+      <h1>Kitchen Order Display</h1>
+    </header>
+
+    <button class="refresh-btn" onclick="loadOrders()">Refresh Orders</button>
+
+    <div id="orders-container" class="orders-container">
+      <div class="no-orders">
+        <p>Loading orders...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-database-compat.js"></script>
+
+  <script>
+    // Initialize Firebase with same config as customer interface
+    const firebaseConfig = {
+      apiKey: "AIzaSyAqAyhiO8psA_We1bTr_sB9Biv3zBTJauk",
+      authDomain: "danosdigital-6d552.firebaseapp.com",
+      projectId: "danosdigital-6d552",
+      storageBucket: "danosdigital-6d552.firebasestorage.app",
+      messagingSenderId: "286747062903",
+      appId: "1:286747062903:web:c16f71d9f3d9cf0ae88c72",
+      measurementId: "G-YCVHXLC7NX"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    // Load orders when page loads
+    document.addEventListener('DOMContentLoaded', function () {
+      loadOrders();
+
+      // Set up auto-refresh every 10 seconds
+      setInterval(loadOrders, 10000);
+    });
+
+    function loadOrders() {
+      const ordersContainer = document.getElementById('orders-container');
+
+      database.ref('orders').orderByChild('timestamp').once('value')
+        .then(snapshot => {
+          const orders = [];
+
+          snapshot.forEach(childSnapshot => {
+            orders.push({
+              id: childSnapshot.key,
+              ...childSnapshot.val()
+            });
+          });
+
+          // Sort by timestamp (newest first)
+          orders.sort((a, b) => b.timestamp - a.timestamp);
+
+          if (orders.length === 0) {
+            ordersContainer.innerHTML = `
+                            <div class="no-orders">
+                                <p>No orders received yet.</p>
+                            </div>
+                        `;
+            return;
+          }
+
+          let ordersHtml = '';
+
+          orders.forEach(order => {
+            const status = order.status || 'new';
+            const statusClass = `status-${status}`;
+            const orderTime = new Date(order.timestamp).toLocaleTimeString();
+
+            let itemsHtml = '';
+            order.items.forEach(item => {
+              itemsHtml += `
+                                <div class="order-item">
+                                    <span>${item.name} (x${item.quantity})</span>
+                                    <span>$${item.total.toFixed(2)}</span>
+                                </div>
+                            `;
+            });
+
+            ordersHtml += `
+                            <div class="order-card">
+                                <h3>Table ${order.tableId} <span class="order-status ${statusClass}">${status}</span></h3>
+                                <div class="order-time">Received: ${orderTime}</div>
+                                <div class="order-items">
+                                    ${itemsHtml}
+                                </div>
+                                <div class="order-total">Total: $${order.total.toFixed(2)}</div>
+                                <div class="order-actions">
+                                    <button class="action-btn preparing-btn" 
+                                        onclick="updateOrderStatus('${order.id}', 'preparing')"
+                                        ${status !== 'new' ? 'disabled' : ''}>
+                                        Preparing
+                                    </button>
+                                    <button class="action-btn ready-btn" 
+                                        onclick="updateOrderStatus('${order.id}', 'ready')"
+                                        ${status === 'ready' ? 'disabled' : ''}>
+                                        Ready
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+          });
+
+          ordersContainer.innerHTML = ordersHtml;
+        })
+        .catch(error => {
+          console.error("Error loading orders:", error);
+          ordersContainer.innerHTML = `
+                        <div class="no-orders">
+                            <p>Error loading orders. Please try again.</p>
+                        </div>
+                    `;
+        });
+    }
+
+    function updateOrderStatus(orderId, status) {
+      database.ref('orders/' + orderId).update({ status: status })
+        .then(() => {
+          loadOrders(); // Refresh the display
+        })
+        .catch(error => {
+          alert('Error updating order status: ' + error.message);
+        });
+    }
+  </script>
+</body>
+
+</html>
